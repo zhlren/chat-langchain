@@ -11,8 +11,8 @@ from langchain.vectorstores.base import VectorStore
 
 
 def get_chain(
-    vectorstore: VectorStore, question_handler, stream_handler, tracing: bool = False
-) -> ConversationalRetrievalChain:  #  <== CHANGE THE TYPE
+        vectorstore: VectorStore, question_handler, stream_handler, tracing: bool = False
+) -> ConversationalRetrievalChain:  # <== CHANGE THE TYPE
     """Create a ChatVectorDBChain for question/answering."""
     # Construct a ChatVectorDBChain with a streaming llm for combine docs
     # and a separate, non-streaming llm for question generation
@@ -45,7 +45,7 @@ def get_chain(
         streaming_llm, chain_type="stuff", prompt=QA_PROMPT, callback_manager=manager
     )
 
-    qa = ConversationalRetrievalChain(         # <==CHANGE  ConversationalRetrievalChain instead of ChatVectorDBChain
+    qa = ConversationalRetrievalChain(  # <==CHANGE  ConversationalRetrievalChain instead of ChatVectorDBChain
         # vectorstore=vectorstore,             # <== REMOVE THIS
         retriever=vectorstore.as_retriever(),  # <== ADD THIS
         combine_docs_chain=doc_chain,
