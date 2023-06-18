@@ -17,11 +17,34 @@ app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 docsearch: Optional[Chroma] = None
 
+import logging
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)  # 设置全局日志level，不设置默认WARN
+
+# save log to file
+file_handler = logging.FileHandler('logs/app.log')
+file_handler.setLevel(logging.DEBUG)
+formatter = logging.Formatter(
+    fmt='%(asctime)s: %(levelname)s: [%(filename)s: %(lineno)d]: %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+file_handler.setFormatter(formatter)
+
+# print to screen
+stream_handler = logging.StreamHandler()
+stream_handler.setLevel(logging.INFO)
+
+# add handlers to logger
+logger.addHandler(file_handler)
+logger.addHandler(stream_handler)
+
+
 @app.on_event("startup")
 async def startup_event():
     print("startup begin")
     # 加载文件夹中的所有txt类型的文件
-    loader = DirectoryLoader('/Users/longmao/Documents/aiCode/doc/test', glob='**/*.epub')
+    loader = DirectoryLoader('../doc', glob='**/*.epub')
     # 将数据转成 document 对象，每个文件会作为一个 document
     documents = loader.load()
 
@@ -37,6 +60,7 @@ async def startup_event():
     docsearch = Chroma.from_documents(split_docs, embeddings)
 
     print("startup end")
+
 
 @app.get("/")
 async def get(request: Request):
@@ -54,6 +78,7 @@ async def websocket_endpoint(websocket: WebSocket):
         try:
             # Receive and send back the client message
             question = await websocket.receive_text()
+            logger.info("question:" + question)
             resp = ChatResponse(sender="you", message=question, type="stream")
             await websocket.send_json(resp.dict())
 
@@ -83,5 +108,5 @@ async def websocket_endpoint(websocket: WebSocket):
 
 if __name__ == "__main__":
     import uvicorn
-
+    logger.info("main start")
     uvicorn.run(app, host="0.0.0.0", port=9000)
