@@ -1,31 +1,42 @@
 """Main entrypoint for the app."""
 import logging
-import pickle
-from pathlib import Path
 from typing import Optional
 
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.templating import Jinja2Templates
-from langchain.vectorstores import VectorStore
 
 from callback import QuestionGenCallbackHandler, StreamingLLMCallbackHandler
 from query_data import get_chain
 from schemas import ChatResponse
+from langchain.embeddings.openai import OpenAIEmbeddings
+from langchain.vectorstores import Chroma
+from langchain.text_splitter import CharacterTextSplitter
+from langchain.document_loaders import DirectoryLoader
 
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
-vectorstore: Optional[VectorStore] = None
-
+docsearch: Optional[Chroma] = None
 
 @app.on_event("startup")
 async def startup_event():
-    logging.info("loading vectorstore")
-    if not Path("vectorstore.pkl").exists():
-        raise ValueError("vectorstore.pkl does not exist, please run ingest.py first")
-    with open("vectorstore.pkl", "rb") as f:
-        global vectorstore
-        vectorstore = pickle.load(f)
+    print("startup begin")
+    # 加载文件夹中的所有txt类型的文件
+    loader = DirectoryLoader('/Users/longmao/Documents/aiCode/doc/test', glob='**/*.epub')
+    # 将数据转成 document 对象，每个文件会作为一个 document
+    documents = loader.load()
 
+    # 初始化加载器
+    text_splitter = CharacterTextSplitter(chunk_size=100, chunk_overlap=0)
+    # 切割加载的 document
+    split_docs = text_splitter.split_documents(documents)
+
+    # 初始化 openai 的 embeddings 对象
+    embeddings = OpenAIEmbeddings()
+    # 将 document 通过 openai 的 embeddings 对象计算 embedding 向量信息并临时存入 Chroma 向量数据库，用于后续匹配查询
+    global docsearch
+    docsearch = Chroma.from_documents(split_docs, embeddings)
+
+    print("startup end")
 
 @app.get("/")
 async def get(request: Request):
@@ -38,11 +49,7 @@ async def websocket_endpoint(websocket: WebSocket):
     question_handler = QuestionGenCallbackHandler(websocket)
     stream_handler = StreamingLLMCallbackHandler(websocket)
     chat_history = []
-    qa_chain = get_chain(vectorstore, question_handler, stream_handler)
-    # Use the below line instead of the above line to enable tracing
-    # Ensure `langchain-server` is running
-    # qa_chain = get_chain(vectorstore, question_handler, stream_handler, tracing=True)
-
+    qa_chain = get_chain(docsearch, question_handler, stream_handler)
     while True:
         try:
             # Receive and send back the client message
